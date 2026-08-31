@@ -1,6 +1,7 @@
 # Video Game Designer (AI) — Technical Assessment
 
-**Time limit:** 2–3 hours max.
+**Time limit:** 2–3 hours max. We expect you to run out of time — that's by design.
+Tell us what you cut and why. A documented cut scores better than a silent gap.
 
 ---
 
@@ -19,7 +20,7 @@ You are given the live system in `/data/`:
 
 - `units.csv` — the starting roster (6 units) with full stats and deployment costs. **It is intentionally unbalanced.**
 - `combat-rules.md` — the exact combat resolution rules.
-- `encounters.md` — two reference encounters for sanity-checking your changes in context.
+- `encounters.md` — three reference encounters for sanity-checking your changes in context. They lean on different axes; a roster that answers all three the same way hasn't been balanced.
 
 And a tool in `/sim/`:
 
@@ -58,6 +59,8 @@ This is the heart of the assessment:
 - **Diagnosis:** which units are broken and *why*, with numbers from the simulator (not vibes).
 - **Changes:** what you changed and the reasoning per change.
 - **Before/after:** simulator output showing the roster moved toward your target (e.g. tighter win-rate spread, flatter cost-efficiency). Show **at least two iterations** — your first fix will not be your last.
+- **Confidence:** convince us your headline numbers are signal and not noise. How you do that is your call — but a number with no precision attached is an opinion.
+- **Degeneracy:** show us that no cheap squad trivially wins a reference encounter under your costs. "I don't think there is one" is not an answer; how you went looking *is*.
 - **Limitations:** what the duel model can't see (positioning, range, healing-as-support) and how you'd validate those.
 
 ### 4. `DESIGN_AI_WORKFLOW.md` — mandatory
@@ -103,7 +106,7 @@ numbers. A well-measured, well-argued, iterated balance beats a lucky guess.
 | Balance method — measure → diagnose → iterate → verify against the sim | 30% |
 | Systems design — the `GDD.md`: coherent intent, numbers, player experience | 25% |
 | Use of AI as a design partner (`DESIGN_AI_WORKFLOW.md`) | 20% |
-| Design judgment — sane trade-offs, caught the subtle issues, knows the model's limits | 15% |
+| Design judgment — sane trade-offs, caught the subtle issues, knows the model's limits, and every claim traces to something you actually ran | 15% |
 | Clarity of documentation | 10% |
 
 ---
