@@ -109,7 +109,7 @@ Produced two more caught failures (Iteration 5's accidental auto-include, Iterat
 
     *- Specifically stress-test against at least one fast-enemy encounter setup, since speed and turn order are exactly the kind of thing a cheap-unit-spam strategy might overuse. If there's genuinely nothing there, just show me the data that proves it. But if there IS a squad comp that's very obviously outperforming everything else, I want to know about it even if it's not a full broken exploit, sometimes a "soft"  pattern that performs suspiciously well is still worth flagging and me knowing about it before it goes anywhere near actual players.*
 
-### Results:###
+### Results: ###
 
 Produced an actual squad-battle extension of the simulator (reusing the duel model's exact combat math, just adding multi-unit orchestration) rather than a hand-waved answer — and it found a real, worth-reporting soft-degenerate pattern (mass-cheap-bodies scoring notably highest against the fast-enemy encounter) that a purely "I don't think there is one" answer would have missed entirely.
 
