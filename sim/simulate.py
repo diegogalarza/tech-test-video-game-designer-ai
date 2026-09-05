@@ -17,10 +17,19 @@ deliberately ignores positioning, movement, range and terrain. Treat that as a
 known limitation, not a bug — part of good balance work is knowing what your
 tool does and does not measure.
 """
+
+"""
+NEW SEGMENT: Squad-battle extension
+Added a squad-battle extension re-using the same functions from the duel 
+simulator, but sending multiple units per side instead of a 1v1 duel, 
+with a simple alternating-turn
+
+    python3 sim/simulate.py --squads
+"""
 import argparse
 import csv
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass
@@ -131,15 +140,120 @@ def run(units, trials, seed):
     return wins, fights, rounds_sum / rounds_n
 
 
+# ---------------------------------------------------------------------------
+# Squad-battle extension (from squad_sim.py) — degeneracy hunting only.
+#
+# Not a replacement for combat-rules.md or the duel model above -- reuses the
+# exact same strike/hit/crit/damage/doubling functions already defined above.
+# Just orchestrates multiple units per side instead of a 1v1 duel, with a
+# simple alternating-turn, focus-fire (lowest current HP%) targeting rule,
+# since the duel model has no positioning and this is only meant to
+# sanity-check the degeneracy question, not model real tactics.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Combatant:
+    unit: Unit
+    hp: int
+
+
+def act(attacker_c, side_targets, rng):
+    living = [c for c in side_targets if c.hp > 0]
+    if not living:
+        return
+    target_c = min(living, key=lambda c: c.hp / c.unit.hp)  # focus lowest hp%
+    n = 2 if doubles(attacker_c.unit, target_c.unit) else 1
+    for _ in range(n):
+        if target_c.hp <= 0:
+            break
+        target_c.hp = strike(attacker_c.unit, target_c.unit, target_c.hp, rng)
+
+
+def battle(squad_units, enemy_units, rng, max_rounds=60):
+    squad = [Combatant(u, u.hp) for u in squad_units]
+    enemies = [Combatant(u, u.hp) for u in enemy_units]
+    first_squad = rng.random() < 0.5
+    for r in range(max_rounds):
+        order = [squad, enemies] if first_squad else [enemies, squad]
+        for i, acting_side in enumerate(order):
+            other_side = order[1 - i]
+            for c in acting_side:
+                if c.hp > 0:
+                    act(c, other_side, rng)
+            if all(c.hp <= 0 for c in other_side):
+                return acting_side is squad
+        if all(c.hp <= 0 for c in squad) or all(c.hp <= 0 for c in enemies):
+            break
+    return sum(c.hp for c in squad if c.hp > 0) > sum(c.hp for c in enemies if c.hp > 0)
+
+
+def make_enemy(id_, name, cls, atype, hp, atk, mag, def_, res, spd, skl, lck):
+    return Unit(id=id_, name=name, cls=cls, attack_type=atype, hp=hp, atk=atk, mag=mag,
+                def_=def_, res=res, spd=spd, skl=skl, lck=lck, cost=0)
+
+
+ENCOUNTERS = {
+    "A - Sunken Gate": [make_enemy(f"wretch{i}", "Gate Wretch", "Brigand", "physical", 22,11,0,5,2,7,6,3) for i in range(3)]
+                        + [make_enemy("acolyte", "Bog Acolyte", "Acolyte", "magic", 18,0,12,3,7,8,8,5)],
+    "B - Hollow Throne": [make_enemy(f"guard{i}", "Throne Guard", "Knight", "physical", 30,15,0,12,5,6,8,4) for i in range(2)]
+                          + [make_enemy("magus", "Crown Magus", "Battlemage", "magic", 22,0,17,4,9,7,10,6)],
+    "C - Carrion Run": [make_enemy(f"shrike{i}", "Shrike Runner", "Skirmisher", "physical", 16,18,0,4,4,15,10,6) for i in range(3)],
+}
+
+
+def run_squad_vs_encounter(squad_units, enemy_units, trials=2000, seed=42):
+    rng = random.Random(seed)
+    wins = 0
+    for _ in range(trials):
+        w = battle(squad_units, [replace(e) for e in enemy_units], rng)
+        wins += w
+    return 100 * wins / trials
+
+
+def run_squad_demo(units, trials=2000, seed=42):
+    """Run the fixed set of degeneracy-check squads against all reference
+    encounters, using whatever roster was loaded via --units."""
+    roster = {u.id: u for u in units}
+
+    SQUADS = {
+        "4x Brennan (5+5+5+5=20)": [roster['brennan']]*4,
+        "2x Sable + 1x Wisp (6+6+8=20)": [roster['sable']]*2 + [roster['wisp']],
+        "2x Halden (9+9=18)": [roster['halden']]*2,
+        "2x Rookwood (9+9=18)": [roster['rookwood']]*2,
+        "Brennan+Sable+Halden (5+6+9=20)": [roster['brennan'], roster['sable'], roster['halden']],
+        "3x Sable (6+6+6=18)": [roster['sable']]*3,
+        "Brennan+Sable+Rookwood (5+6+9=20)": [roster['brennan'], roster['sable'], roster['rookwood']],
+        "Wisp+Pyraxis+Brennan (8+8+5=21->trim: Wisp+Pyraxis=16+Brennan doesn't fit, use Wisp+Pyraxis only)": [roster['wisp'], roster['pyraxis']],
+        "One of each cheap-to-mid (Brennan+Sable+Wisp=5+6+8=19)": [roster['brennan'], roster['sable'], roster['wisp']],
+        "All six, one each (5+6+8+8+9+9=45, OVER BUDGET, illegal - included as upper-bound reference)": list(roster.values()),
+    }
+
+    for enc_name, enemies in ENCOUNTERS.items():
+        print(f"\n=== Encounter {enc_name} (enemy total 'cost'-equivalent bodies: {len(enemies)}) ===")
+        for squad_name, squad in SQUADS.items():
+            cost = sum(u.cost for u in squad)
+            wr = run_squad_vs_encounter(squad, enemies, trials=trials, seed=seed)
+            flag = "  <-- OVER BUDGET (reference only)" if cost > 20 else ""
+            print(f"  {squad_name:<70} cost={cost:<4} win%={wr:>6.1f}%{flag}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--units", default="data/units.csv")
     ap.add_argument("--trials", type=int, default=2000,
                     help="duels per unit pairing (split evenly on who strikes first)")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--squads", action="store_true",
+                     help="run the squad-battle degeneracy demo against the reference "
+                          "encounters instead of the 1v1 duel balance report")
     args = ap.parse_args()
 
     units = load_units(args.units)
+
+    if args.squads:
+        run_squad_demo(units, trials=args.trials, seed=args.seed)
+        return
+
     wins, fights, avg_rounds = run(units, args.trials, args.seed)
 
     rows = []
